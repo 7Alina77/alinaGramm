@@ -33,7 +33,7 @@ export const InputBar: React.FC<Props> = ({
         
         <TouchableOpacity
           style={[styles.sendButton, (!inputText.trim() || disabled) && styles.sendButtonDisabled]}
-          onPress={onSend}
+          onPress={() => onSend()}
           disabled={!inputText.trim() || disabled}
         >
           <Text style={styles.sendButtonText}>Отправить</Text>

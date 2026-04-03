@@ -8,6 +8,7 @@ import { loadMessages, saveMessages, loadUser, removeUser } from './src/services
 import { BOT_NAME, getBotResponse } from './src/constants/botResponses';
 import { Message } from './src/types';
 import { getMessageHistory } from './src/services/api';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,13 +52,15 @@ export default function App() {
     });
     
     socketService.onNewMessage((data) => {
+      console.log('📩 onNewMessage ПОЛУЧЕНО от сервера:', data);
+      
       const newMessage: Message = {
         id: data.id || Date.now().toString(),
         text: data.message || '',
         isMe: false,
         from: data.from,
         timestamp: data.timestamp,
-        file: data.file,  // ← добавляем файл
+        file: data.file,
       };
       
       setMessages(prev => {
@@ -70,12 +73,14 @@ export default function App() {
     });
     
     socketService.onMessageSent((data) => {
+      console.log('📩 onMessageSent ПОЛУЧЕНО от сервера:', data);
+      
       const newMessage: Message = {
         id: data.id || Date.now().toString(),
         text: data.message || '',
         isMe: true,
         timestamp: data.timestamp,
-        file: data.file,  // ← добавляем файл
+        file: data.file,
       };
       
       setMessages(prev => {
@@ -86,8 +91,8 @@ export default function App() {
         return updated;
       });
       
-      // Ответ бота (только для текстовых сообщений)
-      if (botEnabled && selectedContact === BOT_NAME && data.message) {
+      // Ответ бота ТОЛЬКО на текстовые сообщения
+      if (botEnabled && selectedContact === BOT_NAME && data.message && data.message.trim()) {
         setTimeout(() => {
           const botResponse = getBotResponse();
           const botMessage: Message = {
@@ -120,6 +125,7 @@ export default function App() {
     setUserId(username);
     setIsLoggedIn(true);
     connectToServer(username);
+    usePushNotifications(userId);
   };
 
   const handleSelectContact = async (contact: string) => {
@@ -136,11 +142,19 @@ export default function App() {
     setMessages(uniqueMessages);
   };
 
-  // Обновлённая функция отправки сообщения с поддержкой файлов
   const handleSendMessage = (file?: any) => {
-    // Если есть файл и нет текста
+    console.log('📨 handleSendMessage вызван, file:', file);
+    console.log('📨 selectedContact:', selectedContact);
+    console.log('📨 inputText:', inputText);
+    
+    if (!selectedContact) {
+      Alert.alert('Нет собеседника', 'Выберите пользователя из списка');
+      return;
+    }
+    
+    // Отправка файла без текста
     if (file && !inputText.trim()) {
-      // Отправляем только файл
+      console.log('📨 Отправка только файла');
       const messageData = {
         to: selectedContact,
         from: userId,
@@ -152,23 +166,20 @@ export default function App() {
           name: file.name,
         },
       };
+      console.log('📨 messageData:', messageData);
       socketService.sendMessage(messageData);
       return;
     }
     
-    // Если есть текст
+    // Если нет текста и нет файла
     if (inputText.trim().length === 0 && !file) return;
-    if (!selectedContact) {
-      Alert.alert('Нет собеседника', 'Выберите пользователя из списка');
-      return;
-    }
     
     // Переписка с ботом
     if (selectedContact === BOT_NAME) {
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: inputText,
-        isMe: true,
+      const messageData = {
+        to: selectedContact,
+        from: userId,
+        message: inputText,
         timestamp: Date.now(),
         file: file ? {
           url: file.url,
@@ -176,33 +187,12 @@ export default function App() {
           name: file.name,
         } : undefined,
       };
-      
-      setMessages(prev => {
-        const updated = [...prev, newMessage];
-        saveMessages(userId, BOT_NAME, updated);
-        return updated;
-      });
+      socketService.sendMessage(messageData);
       setInputText('');
-      
-      if (inputText.trim()) {
-        setTimeout(() => {
-          const botResponse = getBotResponse();
-          const botMessage: Message = {
-            id: Date.now().toString() + 'bot',
-            text: botResponse,
-            isMe: false,
-            from: BOT_NAME,
-            timestamp: Date.now(),
-          };
-          setMessages(prev => {
-            const updated = [...prev, botMessage];
-            saveMessages(userId, BOT_NAME, updated);
-            return updated;
-          });
-        }, 500);
-      }
       return;
     }
+
+    usePushNotifications(userId);
     
     // Отправка реальному пользователю
     if (!isConnected) {
@@ -241,7 +231,6 @@ export default function App() {
     setUserId('');
   };
 
-  // Экран входа
   if (!isLoggedIn) {
     return (
       <LoginScreen
@@ -252,7 +241,6 @@ export default function App() {
     );
   }
 
-  // Экран выбора собеседника
   if (!selectedContact) {
     return (
       <ContactsScreen
@@ -267,7 +255,6 @@ export default function App() {
     );
   }
 
-  // Экран чата
   return (
     <ChatScreen
       selectedContact={selectedContact}
@@ -275,7 +262,7 @@ export default function App() {
       messages={messages}
       inputText={inputText}
       setInputText={setInputText}
-      onSend={() => handleSendMessage()}
+      onSend={handleSendMessage}
       onBack={handleBack}
       userId={userId}
     />

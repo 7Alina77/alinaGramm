@@ -67,3 +67,17 @@ export const getMessageHistory = async (user1: string, user2: string) => {
     return [];
   }
 };
+
+// Сохранение push-токена на сервере
+export const savePushToken = async (userId: string, token: string) => {
+  try {
+    const response = await fetch(`${SERVER_URL}/api/users/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, token }),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Ошибка сохранения токена:', error);
+  }
+};

@@ -89,36 +89,41 @@ export const ChatScreen: React.FC<Props> = ({
 
   // Отправка файла
   const handleFileSelected = async (file: any) => {
-    const formData = new FormData();
-    formData.append('file', {
-      uri: file.uri,
-      type: file.type,
-      name: file.name,
-    } as any);
+  console.log('📁 Выбран файл:', file.name);
+  
+  const formData = new FormData();
+  formData.append('file', {
+    uri: file.uri,
+    type: file.type,
+    name: file.name,
+  } as any);
 
-    try {
-      const response = await fetch(`${SERVER_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+  try {
+    const response = await fetch(`${SERVER_URL}/api/upload`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('✅ Файл загружен, отправляем сообщение');
+      // Вызываем onSend с объектом файла
+      onSend({
+        url: data.file.url,
+        type: data.file.type,
+        name: data.file.name,
       });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        // Вызываем onSend с данными файла
-        onSend(data.file);
-        setInputText('');
-      } else {
-        Alert.alert('Ошибка', 'Не удалось загрузить файл');
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки файла:', error);
-      Alert.alert('Ошибка', 'Не удалось отправить файл');
+      setInputText('');
     }
-  };
+  } catch (error) {
+    console.error('Ошибка загрузки файла:', error);
+    Alert.alert('Ошибка', 'Не удалось отправить файл');
+  }
+};
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
@@ -144,6 +149,10 @@ export const ChatScreen: React.FC<Props> = ({
         contentContainerStyle={{ padding: 10, paddingBottom: 20 }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={20}
       />
 
       {showScrollButton && (
@@ -155,7 +164,7 @@ export const ChatScreen: React.FC<Props> = ({
       <InputBar
         inputText={inputText}
         setInputText={setInputText}
-        onSend={() => onSend()}
+        onSend={onSend}
         onFileSelected={handleFileSelected}
       />
     </View>

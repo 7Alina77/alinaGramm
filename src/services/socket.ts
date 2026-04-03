@@ -26,6 +26,7 @@ export class SocketService {
   }
   
   sendMessage(data: MessageData): void {
+    console.log('📤 socketService.sendMessage:', data);
     if (this.socket) {
       this.socket.emit('privateMessage', data);
     }
