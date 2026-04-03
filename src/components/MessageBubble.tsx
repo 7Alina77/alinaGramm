@@ -1,20 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import * as Linking from 'expo-linking';
 import { Message } from '../types';
 
 interface Props {
   item: Message;
 }
 
-export const MessageBubble: React.FC<Props> = ({ item }) => {
+export const MessageBubble = memo(({ item }: Props) => {
+  const openFile = (url: string) => {
+    Linking.openURL(url);
+  };
+
   return (
     <View style={[styles.messageBubble, item.isMe ? styles.myMessage : styles.theirMessage]}>
       {!item.isMe && item.from && (
         <Text style={styles.senderName}>{item.from}</Text>
       )}
-      <Text style={[styles.messageText, item.isMe ? styles.myMessageText : styles.theirMessageText]}>
-        {item.text}
-      </Text>
+      
+      {item.file && (
+        <TouchableOpacity onPress={() => openFile(item.file!.url)}>
+          {item.file.type === 'image' ? (
+            <Image 
+              source={{ uri: item.file.url }} 
+              style={styles.fileImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.fileDocument}>
+              <Text style={styles.fileIcon}>📄</Text>
+              <Text style={styles.fileName}>{item.file.name}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
+      
+      {item.text.length > 0 && (
+        <Text style={[styles.messageText, item.isMe ? styles.myMessageText : styles.theirMessageText]}>
+          {item.text}
+        </Text>
+      )}
+      
       {item.timestamp && (
         <Text style={styles.timestamp}>
           {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -22,7 +48,7 @@ export const MessageBubble: React.FC<Props> = ({ item }) => {
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   messageBubble: {
@@ -62,5 +88,28 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 4,
     alignSelf: 'flex-end',
+  },
+  fileImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  fileDocument: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    padding: 10,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  fileIcon: {
+    fontSize: 30,
+    marginRight: 10,
+  },
+  fileName: {
+    fontSize: 12,
+    color: '#333',
+    flex: 1,
   },
 });

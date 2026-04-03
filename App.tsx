@@ -7,6 +7,7 @@ import { socketService } from './src/services/socket';
 import { loadMessages, saveMessages, loadUser, removeUser } from './src/services/storage';
 import { BOT_NAME, getBotResponse } from './src/constants/botResponses';
 import { Message } from './src/types';
+import { getMessageHistory } from './src/services/api';
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,11 +52,12 @@ export default function App() {
     
     socketService.onNewMessage((data) => {
       const newMessage: Message = {
-        id: Date.now().toString(),
-        text: data.message,
+        id: data.id || Date.now().toString(),
+        text: data.message || '',
         isMe: false,
         from: data.from,
         timestamp: data.timestamp,
+        file: data.file,  // ← добавляем файл
       };
       
       setMessages(prev => {
@@ -69,10 +71,11 @@ export default function App() {
     
     socketService.onMessageSent((data) => {
       const newMessage: Message = {
-        id: Date.now().toString(),
-        text: data.message,
+        id: data.id || Date.now().toString(),
+        text: data.message || '',
         isMe: true,
         timestamp: data.timestamp,
+        file: data.file,  // ← добавляем файл
       };
       
       setMessages(prev => {
@@ -83,8 +86,8 @@ export default function App() {
         return updated;
       });
       
-      // Ответ бота
-      if (botEnabled && selectedContact === BOT_NAME) {
+      // Ответ бота (только для текстовых сообщений)
+      if (botEnabled && selectedContact === BOT_NAME && data.message) {
         setTimeout(() => {
           const botResponse = getBotResponse();
           const botMessage: Message = {
@@ -113,6 +116,7 @@ export default function App() {
   };
 
   const handleLogin = (username: string) => {
+    if (userId === username) return;
     setUserId(username);
     setIsLoggedIn(true);
     connectToServer(username);
@@ -120,12 +124,40 @@ export default function App() {
 
   const handleSelectContact = async (contact: string) => {
     setSelectedContact(contact);
-    const savedMessages = await loadMessages(userId, contact);
-    setMessages(savedMessages);
+    
+    const serverMessages = await getMessageHistory(userId, contact);
+    const localMessages = await loadMessages(userId, contact);
+    const allMessages = [...serverMessages, ...localMessages];
+    const uniqueMessages = allMessages.filter((msg, index, self) => 
+      index === self.findIndex(m => m.id === msg.id)
+    );
+    uniqueMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    
+    setMessages(uniqueMessages);
   };
 
-  const handleSendMessage = () => {
-    if (inputText.trim().length === 0) return;
+  // Обновлённая функция отправки сообщения с поддержкой файлов
+  const handleSendMessage = (file?: any) => {
+    // Если есть файл и нет текста
+    if (file && !inputText.trim()) {
+      // Отправляем только файл
+      const messageData = {
+        to: selectedContact,
+        from: userId,
+        message: '',
+        timestamp: Date.now(),
+        file: {
+          url: file.url,
+          type: file.type,
+          name: file.name,
+        },
+      };
+      socketService.sendMessage(messageData);
+      return;
+    }
+    
+    // Если есть текст
+    if (inputText.trim().length === 0 && !file) return;
     if (!selectedContact) {
       Alert.alert('Нет собеседника', 'Выберите пользователя из списка');
       return;
@@ -138,6 +170,11 @@ export default function App() {
         text: inputText,
         isMe: true,
         timestamp: Date.now(),
+        file: file ? {
+          url: file.url,
+          type: file.type,
+          name: file.name,
+        } : undefined,
       };
       
       setMessages(prev => {
@@ -147,21 +184,23 @@ export default function App() {
       });
       setInputText('');
       
-      setTimeout(() => {
-        const botResponse = getBotResponse();
-        const botMessage: Message = {
-          id: Date.now().toString() + 'bot',
-          text: botResponse,
-          isMe: false,
-          from: BOT_NAME,
-          timestamp: Date.now(),
-        };
-        setMessages(prev => {
-          const updated = [...prev, botMessage];
-          saveMessages(userId, BOT_NAME, updated);
-          return updated;
-        });
-      }, 500);
+      if (inputText.trim()) {
+        setTimeout(() => {
+          const botResponse = getBotResponse();
+          const botMessage: Message = {
+            id: Date.now().toString() + 'bot',
+            text: botResponse,
+            isMe: false,
+            from: BOT_NAME,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => {
+            const updated = [...prev, botMessage];
+            saveMessages(userId, BOT_NAME, updated);
+            return updated;
+          });
+        }, 500);
+      }
       return;
     }
     
@@ -176,6 +215,11 @@ export default function App() {
       from: userId,
       message: inputText,
       timestamp: Date.now(),
+      file: file ? {
+        url: file.url,
+        type: file.type,
+        name: file.name,
+      } : undefined,
     };
 
     socketService.sendMessage(messageData);
@@ -231,8 +275,9 @@ export default function App() {
       messages={messages}
       inputText={inputText}
       setInputText={setInputText}
-      onSend={handleSendMessage}
+      onSend={() => handleSendMessage()}
       onBack={handleBack}
+      userId={userId}
     />
   );
 }

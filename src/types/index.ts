@@ -4,6 +4,19 @@ export interface Message {
   isMe: boolean;
   from?: string;
   timestamp?: number;
+  file?: {
+    url: string;
+    type: 'image' | 'document' | 'audio' | 'video';
+    name: string;
+    size?: number;
+  };
+}
+
+export interface FileData {
+  uri: string;
+  type: string;
+  name: string;
+  size?: number;
 }
 
 export interface User {

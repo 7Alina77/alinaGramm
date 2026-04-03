@@ -59,13 +59,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin, botEnabled, setBotEnable
           setIsRegisterMode(false);
           setPassword('');
           setConfirmPassword('');
+          // Очищаем состояние загрузки
+          setIsLoading(false);
         }}
       ]);
     } else {
       Alert.alert('Ошибка', result.error || 'Что-то пошло не так');
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const handleLogin = async () => {
@@ -80,12 +81,15 @@ export const LoginScreen: React.FC<Props> = ({ onLogin, botEnabled, setBotEnable
     
     if (result.success) {
       await saveUser(username, password);
-      onLogin(username);
+      // Небольшая задержка перед переходом, чтобы индикатор успел показаться
+      setTimeout(() => {
+        setIsLoading(false);
+        onLogin(username);
+      }, 200);
     } else {
       Alert.alert('Ошибка', result.error || 'Неверное имя или пароль');
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (
@@ -129,7 +133,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin, botEnabled, setBotEnable
             />
           )}
           
-          {/* Переключатель бота - теперь на обоих экранах */}
           <View style={styles.botToggleContainer}>
             <Text style={styles.botToggleLabel}>🤖 Бот-помощник</Text>
             <Switch
@@ -137,6 +140,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin, botEnabled, setBotEnable
               onValueChange={setBotEnabled}
               trackColor={{ false: '#E5E5EA', true: '#007AFF' }}
               thumbColor={'white'}
+              disabled={isLoading}
             />
           </View>
           

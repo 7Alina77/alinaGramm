@@ -5,10 +5,13 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  TextInput,
   Platform,
+  Alert,
 } from 'react-native';
 import { MessageBubble } from '../components/MessageBubble';
+import { InputBar } from '../components/InputBar';
+import { socketService } from '../services/socket';
+import { SERVER_URL } from '../constants/config';
 import { BOT_NAME } from '../constants/botResponses';
 
 interface Props {
@@ -17,8 +20,9 @@ interface Props {
   messages: Message[];
   inputText: string;
   setInputText: (text: string) => void;
-  onSend: () => void;
+  onSend: (file?: any) => void;
   onBack: () => void;
+  userId: string;
 }
 
 interface Message {
@@ -27,6 +31,11 @@ interface Message {
   isMe: boolean;
   from?: string;
   timestamp?: number;
+  file?: {
+    url: string;
+    type: string;
+    name: string;
+  };
 }
 
 export const ChatScreen: React.FC<Props> = ({
@@ -37,24 +46,36 @@ export const ChatScreen: React.FC<Props> = ({
   setInputText,
   onSend,
   onBack,
+  userId,
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const isFirstLoad = useRef(true);
 
-  // Мягкий скролл к последнему сообщению
-  const scrollToBottom = (animated = true) => {
+  // Скролл к последнему сообщению
+  const scrollToBottom = (animated = false) => {
     if (messages.length > 0 && flatListRef.current) {
       flatListRef.current.scrollToEnd({ animated });
     }
   };
 
-  // При загрузке и при каждом изменении сообщений - скролл вниз
+  // Только при первой загрузке чата - скролл без анимации
   useEffect(() => {
-    // Небольшая задержка для гарантии рендера
-    const timer = setTimeout(() => {
-      scrollToBottom(true);
-    }, 50);
-    return () => clearTimeout(timer);
+    if (isFirstLoad.current && messages.length > 0) {
+      isFirstLoad.current = false;
+      setTimeout(() => {
+        scrollToBottom(false);
+      }, 150);
+    }
+  }, []);
+
+  // При новых сообщениях (не при первой загрузке)
+  useEffect(() => {
+    if (!isFirstLoad.current && messages.length > 0) {
+      setTimeout(() => {
+        scrollToBottom(true);
+      }, 50);
+    }
   }, [messages.length]);
 
   // Отслеживаем позицию скролла для показа кнопки
@@ -66,9 +87,41 @@ export const ChatScreen: React.FC<Props> = ({
     setShowScrollButton(offsetY > 100 && contentHeight > layoutHeight);
   };
 
+  // Отправка файла
+  const handleFileSelected = async (file: any) => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: file.uri,
+      type: file.type,
+      name: file.name,
+    } as any);
+
+    try {
+      const response = await fetch(`${SERVER_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Вызываем onSend с данными файла
+        onSend(data.file);
+        setInputText('');
+      } else {
+        Alert.alert('Ошибка', 'Не удалось загрузить файл');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки файла:', error);
+      Alert.alert('Ошибка', 'Не удалось отправить файл');
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      {/* Заголовок */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>←</Text>
@@ -82,7 +135,6 @@ export const ChatScreen: React.FC<Props> = ({
         <View style={styles.backButtonPlaceholder} />
       </View>
 
-      {/* Список сообщений */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -94,30 +146,18 @@ export const ChatScreen: React.FC<Props> = ({
         scrollEventThrottle={16}
       />
 
-      {/* Кнопка "Вниз" */}
       {showScrollButton && (
         <TouchableOpacity style={styles.scrollButton} onPress={() => scrollToBottom(true)}>
           <Text style={styles.scrollButtonText}>↓</Text>
         </TouchableOpacity>
       )}
 
-      {/* Поле ввода */}
-      <View style={[
-        styles.inputContainer,
-        { paddingBottom: Platform.OS === 'ios' ? 34 : 20 }
-      ]}>
-        <TextInput
-          style={styles.input}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="Введите сообщение..."
-          placeholderTextColor="#999"
-          multiline
-        />
-        <TouchableOpacity style={styles.sendButton} onPress={onSend}>
-          <Text style={styles.sendButtonText}>Отправить</Text>
-        </TouchableOpacity>
-      </View>
+      <InputBar
+        inputText={inputText}
+        setInputText={setInputText}
+        onSend={() => onSend()}
+        onFileSelected={handleFileSelected}
+      />
     </View>
   );
 };
@@ -157,37 +197,6 @@ const styles = StyleSheet.create({
   },
   backButtonPlaceholder: {
     width: 40,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'flex-end',
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: '#F8F9FA',
-    maxHeight: 100,
-  },
-  sendButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginLeft: 8,
-  },
-  sendButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   scrollButton: {
     position: 'absolute',

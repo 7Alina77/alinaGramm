@@ -46,3 +46,24 @@ export const loginUser = async (username: string, password: string): Promise<{ s
     return { success: false, error: 'Не удалось подключиться к серверу' };
   }
 };
+
+// Получение истории сообщений с сервера
+export const getMessageHistory = async (user1: string, user2: string) => {
+  try {
+    const response = await fetch(`${SERVER_URL}/api/messages/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user1, user2 }),
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      return data.messages;
+    }
+    return [];
+  } catch (error) {
+    console.error('Ошибка загрузки истории:', error);
+    return [];
+  }
+};
