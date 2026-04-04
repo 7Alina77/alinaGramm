@@ -4,6 +4,7 @@
     "slug": "alinagramm-hge9fw",
     "version": "1.0.0",
     "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "notification": {
@@ -31,7 +32,12 @@
       "package": "com.alinagramm.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Мой Мессенджер",
+      "shortName": "Messenger",
+      "lang": "ru",
+      "themeColor": "#007AFF",
+      "backgroundColor": "#ffffff"
     },
     "extra": {
       "eas": {
