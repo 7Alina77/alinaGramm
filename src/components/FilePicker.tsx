@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 
@@ -11,6 +11,55 @@ interface Props {
 export const FilePicker: React.FC<Props> = ({ onFileSelected, disabled }) => {
   const [isLoading, setIsLoading] = React.useState(false);
 
+  const isWeb = Platform.OS === 'web';
+
+  // Для веба - выбор фото
+  const pickImageWeb = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,video/*';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          onFileSelected({
+            uri: event.target?.result,
+            type: file.type,
+            name: file.name,
+            size: file.size,
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  // Для веба - выбор документа
+  const pickDocumentWeb = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          onFileSelected({
+            uri: event.target?.result,
+            type: file.type,
+            name: file.name,
+            size: file.size,
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  // Для мобильных устройств - выбор фото
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
@@ -29,6 +78,7 @@ export const FilePicker: React.FC<Props> = ({ onFileSelected, disabled }) => {
     }
   };
 
+  // Для мобильных устройств - выбор документа
   const pickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: '*/*',
@@ -47,15 +97,27 @@ export const FilePicker: React.FC<Props> = ({ onFileSelected, disabled }) => {
   };
 
   const showOptions = () => {
-    Alert.alert(
-      'Выберите файл',
-      'Что хотите отправить?',
-      [
-        { text: '📷 Фото/Видео', onPress: pickImage },
-        { text: '📄 Документ', onPress: pickDocument },
-        { text: 'Отмена', style: 'cancel' },
-      ]
-    );
+    if (isWeb) {
+      Alert.alert(
+        'Выберите файл',
+        'Что хотите отправить?',
+        [
+          { text: '📷 Фото/Видео', onPress: pickImageWeb },
+          { text: '📄 Документ', onPress: pickDocumentWeb },
+          { text: 'Отмена', style: 'cancel' },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Выберите файл',
+        'Что хотите отправить?',
+        [
+          { text: '📷 Фото/Видео', onPress: pickImage },
+          { text: '📄 Документ', onPress: pickDocument },
+          { text: 'Отмена', style: 'cancel' },
+        ]
+      );
+    }
   };
 
   return (
