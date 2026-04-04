@@ -8,7 +8,6 @@ import { loadMessages, saveMessages, loadUser, removeUser } from './src/services
 import { BOT_NAME, getBotResponse } from './src/constants/botResponses';
 import { Message } from './src/types';
 import { getMessageHistory } from './src/services/api';
-import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -21,6 +20,7 @@ export default function App() {
   const [botEnabled, setBotEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const isInitialMount = useRef(true);
+  const isLoadingMessages = useRef(false); // ← Добавлено
 
   // Загрузка сохранённого пользователя
   useEffect(() => {
@@ -52,8 +52,6 @@ export default function App() {
     });
     
     socketService.onNewMessage((data) => {
-      console.log('📩 onNewMessage ПОЛУЧЕНО от сервера:', data);
-      
       const newMessage: Message = {
         id: data.id || Date.now().toString(),
         text: data.message || '',
@@ -73,8 +71,6 @@ export default function App() {
     });
     
     socketService.onMessageSent((data) => {
-      console.log('📩 onMessageSent ПОЛУЧЕНО от сервера:', data);
-      
       const newMessage: Message = {
         id: data.id || Date.now().toString(),
         text: data.message || '',
@@ -91,7 +87,6 @@ export default function App() {
         return updated;
       });
       
-      // Ответ бота ТОЛЬКО на текстовые сообщения
       if (botEnabled && selectedContact === BOT_NAME && data.message && data.message.trim()) {
         setTimeout(() => {
           const botResponse = getBotResponse();
@@ -125,36 +120,38 @@ export default function App() {
     setUserId(username);
     setIsLoggedIn(true);
     connectToServer(username);
-    usePushNotifications(userId);
   };
 
+  // Исправленный handleSelectContact
   const handleSelectContact = async (contact: string) => {
+    if (isLoadingMessages.current) return; // ← Защита от повторных вызовов
+    if (selectedContact === contact) return; // ← Не переключаемся на тот же контакт
+    
+    isLoadingMessages.current = true;
     setSelectedContact(contact);
     
-    const serverMessages = await getMessageHistory(userId, contact);
-    const localMessages = await loadMessages(userId, contact);
-    const allMessages = [...serverMessages, ...localMessages];
-    const uniqueMessages = allMessages.filter((msg, index, self) => 
-      index === self.findIndex(m => m.id === msg.id)
-    );
-    uniqueMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-    
-    setMessages(uniqueMessages);
+    try {
+      const serverMessages = await getMessageHistory(userId, contact);
+      const localMessages = await loadMessages(userId, contact);
+      const allMessages = [...serverMessages, ...localMessages];
+      const uniqueMessages = allMessages.filter((msg, index, self) => 
+        index === self.findIndex(m => m.id === msg.id)
+      );
+      uniqueMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      
+      setMessages(uniqueMessages);
+    } finally {
+      isLoadingMessages.current = false;
+    }
   };
 
   const handleSendMessage = (file?: any) => {
-    console.log('📨 handleSendMessage вызван, file:', file);
-    console.log('📨 selectedContact:', selectedContact);
-    console.log('📨 inputText:', inputText);
-    
     if (!selectedContact) {
       Alert.alert('Нет собеседника', 'Выберите пользователя из списка');
       return;
     }
     
-    // Отправка файла без текста
     if (file && !inputText.trim()) {
-      console.log('📨 Отправка только файла');
       const messageData = {
         to: selectedContact,
         from: userId,
@@ -166,15 +163,12 @@ export default function App() {
           name: file.name,
         },
       };
-      console.log('📨 messageData:', messageData);
       socketService.sendMessage(messageData);
       return;
     }
     
-    // Если нет текста и нет файла
     if (inputText.trim().length === 0 && !file) return;
     
-    // Переписка с ботом
     if (selectedContact === BOT_NAME) {
       const messageData = {
         to: selectedContact,
@@ -191,10 +185,7 @@ export default function App() {
       setInputText('');
       return;
     }
-
-    usePushNotifications(userId);
     
-    // Отправка реальному пользователю
     if (!isConnected) {
       Alert.alert('Нет подключения', 'Подождите, подключение к серверу...');
       return;

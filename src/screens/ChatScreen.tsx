@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -49,36 +49,25 @@ export const ChatScreen: React.FC<Props> = ({
   userId,
 }) => {
   const flatListRef = useRef<FlatList>(null);
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const isFirstLoad = useRef(true);
+  const [showScrollButton, setShowScrollButton] = React.useState(false);
 
-  // Скролл к последнему сообщению
+  // Скролл к последнему сообщению (без анимации для первого раза)
   const scrollToBottom = (animated = false) => {
     if (messages.length > 0 && flatListRef.current) {
       flatListRef.current.scrollToEnd({ animated });
     }
   };
 
-  // Только при первой загрузке чата - скролл без анимации
+  // При загрузке и при новых сообщениях
   useEffect(() => {
-    if (isFirstLoad.current && messages.length > 0) {
-      isFirstLoad.current = false;
-      setTimeout(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => {
         scrollToBottom(false);
-      }, 150);
-    }
-  }, []);
-
-  // При новых сообщениях (не при первой загрузке)
-  useEffect(() => {
-    if (!isFirstLoad.current && messages.length > 0) {
-      setTimeout(() => {
-        scrollToBottom(true);
-      }, 50);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [messages.length]);
 
-  // Отслеживаем позицию скролла для показа кнопки
   const handleScroll = (event: any) => {
     const offsetY = event.nativeEvent.contentOffset.y;
     const contentHeight = event.nativeEvent.contentSize.height;
@@ -87,43 +76,38 @@ export const ChatScreen: React.FC<Props> = ({
     setShowScrollButton(offsetY > 100 && contentHeight > layoutHeight);
   };
 
-  // Отправка файла
   const handleFileSelected = async (file: any) => {
-  console.log('📁 Выбран файл:', file.name);
-  
-  const formData = new FormData();
-  formData.append('file', {
-    uri: file.uri,
-    type: file.type,
-    name: file.name,
-  } as any);
+    const formData = new FormData();
+    formData.append('file', {
+      uri: file.uri,
+      type: file.type,
+      name: file.name,
+    } as any);
 
-  try {
-    const response = await fetch(`${SERVER_URL}/api/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    const data = await response.json();
-    
-    if (data.success) {
-      console.log('✅ Файл загружен, отправляем сообщение');
-      // Вызываем onSend с объектом файла
-      onSend({
-        url: data.file.url,
-        type: data.file.type,
-        name: data.file.name,
+    try {
+      const response = await fetch(`${SERVER_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
-      setInputText('');
+
+      const data = await response.json();
+      
+      if (data.success) {
+        onSend({
+          url: data.file.url,
+          type: data.file.type,
+          name: data.file.name,
+        });
+        setInputText('');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки файла:', error);
+      Alert.alert('Ошибка', 'Не удалось отправить файл');
     }
-  } catch (error) {
-    console.error('Ошибка загрузки файла:', error);
-    Alert.alert('Ошибка', 'Не удалось отправить файл');
-  }
-};
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
@@ -149,10 +133,6 @@ export const ChatScreen: React.FC<Props> = ({
         contentContainerStyle={{ padding: 10, paddingBottom: 20 }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={20}
       />
 
       {showScrollButton && (
